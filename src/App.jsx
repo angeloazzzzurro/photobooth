@@ -70,6 +70,7 @@ const CSS = `
     animation:do-flash .35s ease-out forwards;
   }
   @keyframes do-flash { 0%{opacity:.9} 100%{opacity:0} }
+  @media (prefers-reduced-motion: reduce) { .flash-el { display:none; } }
 
   .strip-mini {
     position:absolute; bottom:12px; right:12px;
@@ -147,7 +148,7 @@ const CSS = `
     flex-shrink:0;
   }
   .stk-title { font-size:15px; font-weight:600; }
-  .stk-hint  { font-size:10px; color:rgba(255,255,255,.3); text-align:center; margin-top:2px; }
+  .stk-hint  { font-size:10px; color:rgba(255,255,255,.55); text-align:center; margin-top:2px; }
 
   .btn-ghost {
     padding:8px 14px; border-radius:20px;
@@ -213,6 +214,34 @@ const CSS = `
     transition:background .1s,transform .1s;
   }
   .stk-pick:active { background:rgba(255,107,157,.2); transform:scale(.88); }
+
+  /* Focus visibile per tastiera */
+  :focus-visible { outline:2px solid #FF6B9D; outline-offset:2px; border-radius:4px; }
+
+  /* Bottone elimina sticker */
+  .stk-delete {
+    position:absolute; top:-10px; right:-10px;
+    width:22px; height:22px; border-radius:50%;
+    background:#FF4444; color:#fff; border:2px solid #0A0A12;
+    font-size:11px; font-weight:700; cursor:pointer; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+    transition:transform .1s;
+    pointer-events:all;
+  }
+  .stk-delete:active { transform:scale(.88); }
+
+  /* Indicatore progresso strip */
+  .strip-progress {
+    position:absolute; top:12px; left:50%; transform:translateX(-50%);
+    background:rgba(0,0,0,.65); backdrop-filter:blur(8px);
+    padding:6px 14px; border-radius:20px;
+    font-size:13px; font-weight:600; color:#fff;
+    pointer-events:none; z-index:10;
+  }
+
+  /* Salva loading */
+  .btn-save:disabled { opacity:.65; cursor:not-allowed; transform:none !important; }
 `;
 
 // ─── Camera Screen ─────────────────────────────────────────────────────────────
@@ -227,6 +256,7 @@ function CameraScreen({ onCapture }) {
   const [capturing, setCapturing] = useState(false);
   const [stripPreview, setStripPreview] = useState([]);
   const [camError, setCamError] = useState(false);
+  const [shotProgress, setShotProgress] = useState(null); // "2/4"
 
   useEffect(() => {
     navigator.mediaDevices
@@ -256,10 +286,12 @@ function CameraScreen({ onCapture }) {
     if (capturing) return;
     setCapturing(true);
     setStripPreview([]);
+    setShotProgress(null);
     const shots = stripMode ? 4 : 1;
     const photos = [];
 
     for (let i = 0; i < shots; i++) {
+      if (stripMode) setShotProgress(`${i + 1} / ${shots}`);
       for (let n = 3; n > 0; n--) {
         setCountdown(n);
         await sleep(900);
@@ -273,6 +305,7 @@ function CameraScreen({ onCapture }) {
       if (i < shots - 1) await sleep(700);
     }
 
+    setShotProgress(null);
     setCapturing(false);
     streamRef.current?.getTracks().forEach(t => t.stop());
     onCapture({ photos, style, isStrip: stripMode });
@@ -292,11 +325,18 @@ function CameraScreen({ onCapture }) {
             className="cam-video"
             style={{ filter: style.filter === "none" ? undefined : style.filter }}
             autoPlay playsInline muted
+            aria-label="Anteprima camera"
           />
         )}
 
+        {shotProgress && (
+          <div className="strip-progress" aria-live="polite">
+            Foto {shotProgress}
+          </div>
+        )}
+
         {countdown !== null && (
-          <div className="countdown-over">
+          <div className="countdown-over" aria-live="assertive" aria-atomic="true">
             <div className="countdown-num" key={countdown}>{countdown}</div>
           </div>
         )}
@@ -314,14 +354,16 @@ function CameraScreen({ onCapture }) {
         )}
       </div>
 
-      <div className="style-bar">
+      <div className="style-bar" role="group" aria-label="Stili fotografici">
         {PHOTO_STYLES.map(s => (
           <button
             key={s.id}
             className={`style-chip${style.id === s.id ? " on" : ""}`}
             onClick={() => setStyle(s)}
+            aria-pressed={style.id === s.id}
+            aria-label={`Filtro ${s.name}`}
           >
-            <span className="style-chip-icon">{s.icon}</span>
+            <span className="style-chip-icon" aria-hidden="true">{s.icon}</span>
             {s.name}
           </button>
         ))}
@@ -331,12 +373,19 @@ function CameraScreen({ onCapture }) {
         <button
           className={`mode-btn${stripMode ? " on" : ""}`}
           onClick={() => setStripMode(v => !v)}
+          aria-pressed={stripMode}
+          aria-label={stripMode ? "Modalità strip attiva (4 foto)" : "Modalità singola foto"}
         >
-          <span className="mode-btn-icon">{stripMode ? "🎞️" : "📷"}</span>
+          <span className="mode-btn-icon" aria-hidden="true">{stripMode ? "🎞️" : "📷"}</span>
           {stripMode ? "Strip" : "Single"}
         </button>
 
-        <button className="shutter" onClick={doCapture} disabled={capturing || camError}>
+        <button
+          className="shutter"
+          onClick={doCapture}
+          disabled={capturing || camError}
+          aria-label={stripMode ? "Scatta 4 foto (modalità strip)" : "Scatta foto"}
+        >
           <div className="shutter-inner" />
         </button>
 
@@ -355,6 +404,7 @@ function StickerScreen({ captureData, onRetake }) {
   const [activeCat, setActiveCat] = useState(0);
   const [dragging, setDragging] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   function addSticker(emoji) {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -400,6 +450,8 @@ function StickerScreen({ captureData, onRetake }) {
   }
 
   async function handleDownload() {
+    if (saving) return;
+    setSaving(true);
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -442,6 +494,7 @@ function StickerScreen({ captureData, onRetake }) {
     a.download = `photobooth-${Date.now()}.jpg`;
     a.href = canvas.toDataURL("image/jpeg", 0.95);
     a.click();
+    setSaving(false);
   }
 
   return (
@@ -454,7 +507,9 @@ function StickerScreen({ captureData, onRetake }) {
             {selected ? "Trascina • doppio tap = elimina" : "Tocca uno sticker per aggiungerlo"}
           </div>
         </div>
-        <button className="btn-save" onClick={handleDownload}>⬇ Salva</button>
+        <button className="btn-save" onClick={handleDownload} disabled={saving} aria-label="Scarica foto">
+          {saving ? "⏳ Salvataggio…" : "⬇ Salva"}
+        </button>
       </div>
 
       <div
@@ -483,27 +538,47 @@ function StickerScreen({ captureData, onRetake }) {
             onPointerMove={handleStickerMove}
             onPointerUp={() => setDragging(null)}
             onDoubleClick={e => { e.stopPropagation(); removeSticker(s.id); }}
+            role="img"
+            aria-label={`Sticker ${s.emoji}, trascina per spostare`}
           >
             {s.emoji}
+            {selected === s.id && (
+              <button
+                className="stk-delete"
+                onClick={e => { e.stopPropagation(); removeSticker(s.id); }}
+                onPointerDown={e => e.stopPropagation()}
+                aria-label={`Elimina sticker ${s.emoji}`}
+              >
+                ✕
+              </button>
+            )}
           </div>
         ))}
       </div>
 
       <div className="stk-panel">
-        <div className="cat-tabs">
+        <div className="cat-tabs" role="tablist" aria-label="Categorie sticker">
           {STICKER_CATS.map((c, i) => (
             <button
               key={i}
+              role="tab"
+              aria-selected={activeCat === i}
               className={`cat-tab${activeCat === i ? " on" : ""}`}
               onClick={() => setActiveCat(i)}
+              aria-label={`Categoria ${c.cat}`}
             >
               {c.cat}
             </button>
           ))}
         </div>
-        <div className="stk-grid">
+        <div className="stk-grid" role="tabpanel">
           {STICKER_CATS[activeCat].items.map((emoji, i) => (
-            <button key={i} className="stk-pick" onClick={() => addSticker(emoji)}>
+            <button
+              key={i}
+              className="stk-pick"
+              onClick={() => addSticker(emoji)}
+              aria-label={`Aggiungi sticker ${emoji}`}
+            >
               {emoji}
             </button>
           ))}
