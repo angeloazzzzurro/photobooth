@@ -50,8 +50,20 @@ const CSS = `
 
   .cam-video {
     width:100%; height:100%; object-fit:cover;
-    transform:scaleX(-1); transition:filter 0.25s;
+    transition:filter 0.25s;
   }
+
+  .cam-switch {
+    position:absolute; top:12px; right:12px;
+    width:42px; height:42px; border-radius:50%;
+    background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
+    border:1.5px solid rgba(255,255,255,.2);
+    color:#fff; font-size:19px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .2s; z-index:5;
+  }
+  .cam-switch:active { transform:scale(.88) rotate(180deg); }
+  .cam-switch:disabled { opacity:.4; cursor:not-allowed; }
 
   .countdown-over {
     position:absolute; inset:0;
@@ -185,9 +197,23 @@ const CSS = `
     position:absolute; cursor:grab; user-select:none;
     touch-action:none; line-height:1;
     filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));
+    transform-origin:center center;
   }
   .stk-el:active { cursor:grabbing; }
   .stk-el.sel { outline:2px dashed rgba(255,107,157,.8); outline-offset:3px; border-radius:4px; }
+
+  /* Handle resize e rotate */
+  .stk-handle {
+    position:absolute; width:22px; height:22px; border-radius:50%;
+    background:#FF6B9D; border:2px solid #fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; touch-action:none; pointer-events:all;
+    box-shadow:0 2px 6px rgba(0,0,0,.45);
+    transition:transform .1s; z-index:1;
+  }
+  .stk-handle:active { transform:scale(.85); }
+  .stk-handle-resize { bottom:-11px; right:-11px; cursor:se-resize; }
+  .stk-handle-rotate { top:-11px; left:50%; transform:translateX(-50%); cursor:grab; }
 
   /* Sticker panel */
   .stk-panel { background:#0F0F1A; border-top:1px solid rgba(255,255,255,.07); flex-shrink:0; }
@@ -256,18 +282,32 @@ function CameraScreen({ onCapture }) {
   const [capturing, setCapturing] = useState(false);
   const [stripPreview, setStripPreview] = useState([]);
   const [camError, setCamError] = useState(false);
-  const [shotProgress, setShotProgress] = useState(null); // "2/4"
+  const [shotProgress, setShotProgress] = useState(null);
+  const [facingMode, setFacingMode] = useState("user");
 
   useEffect(() => {
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 } } })
-      .then(stream => {
-        streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      })
-      .catch(() => setCamError(true));
+    startCamera("user");
     return () => streamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
+
+  async function startCamera(mode) {
+    try {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: mode, width: { ideal: 1280 } }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    } catch {
+      setCamError(true);
+    }
+  }
+
+  async function switchCamera() {
+    const next = facingMode === "user" ? "environment" : "user";
+    setFacingMode(next);
+    await startCamera(next);
+  }
 
   function snap() {
     const v = videoRef.current;
@@ -276,8 +316,7 @@ function CameraScreen({ onCapture }) {
     c.width = v.videoWidth || 640;
     c.height = v.videoHeight || 480;
     const ctx = c.getContext("2d");
-    ctx.translate(c.width, 0);
-    ctx.scale(-1, 1);
+    if (facingMode === "user") { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
     ctx.drawImage(v, 0, 0);
     return c.toDataURL("image/jpeg", 0.92);
   }
@@ -323,10 +362,21 @@ function CameraScreen({ onCapture }) {
           <video
             ref={videoRef}
             className="cam-video"
-            style={{ filter: style.filter === "none" ? undefined : style.filter }}
+            style={{
+              filter: style.filter === "none" ? undefined : style.filter,
+              transform: facingMode === "user" ? "scaleX(-1)" : "none",
+            }}
             autoPlay playsInline muted
             aria-label="Anteprima camera"
           />
+          <button
+            className="cam-switch"
+            onClick={switchCamera}
+            disabled={capturing}
+            aria-label="Cambia fotocamera"
+          >
+            🔄
+          </button>
         )}
 
         {shotProgress && (
@@ -412,7 +462,7 @@ function StickerScreen({ captureData, onRetake }) {
     const id = ++stickerCounter;
     const size = 52;
     setStickers(prev => [...prev, {
-      id, emoji, size,
+      id, emoji, size, rotation: 0,
       x: 40 + Math.random() * (rect.width - size - 80),
       y: 40 + Math.random() * (rect.height - size - 80),
     }]);
@@ -423,16 +473,46 @@ function StickerScreen({ captureData, onRetake }) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     setSelected(sticker.id);
-    setDragging({ id: sticker.id, origX: sticker.x, origY: sticker.y, startX: e.clientX, startY: e.clientY });
+    setDragging({ type: "move", id: sticker.id, origX: sticker.x, origY: sticker.y, startX: e.clientX, startY: e.clientY });
+  }
+
+  function handleResizeDown(e, sticker) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging({ type: "resize", id: sticker.id, origSize: sticker.size, startX: e.clientX, startY: e.clientY });
+  }
+
+  function handleRotateDown(e, sticker) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const rect = containerRef.current.getBoundingClientRect();
+    const centerX = rect.left + sticker.x + sticker.size / 2;
+    const centerY = rect.top + sticker.y + sticker.size / 2;
+    const startAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180 / Math.PI;
+    setDragging({ type: "rotate", id: sticker.id, origRotation: sticker.rotation || 0, centerX, centerY, startAngle });
   }
 
   function handleStickerMove(e) {
     if (!dragging) return;
-    const dx = e.clientX - dragging.startX;
-    const dy = e.clientY - dragging.startY;
-    setStickers(prev => prev.map(s =>
-      s.id === dragging.id ? { ...s, x: dragging.origX + dx, y: dragging.origY + dy } : s
-    ));
+    if (dragging.type === "move") {
+      const dx = e.clientX - dragging.startX;
+      const dy = e.clientY - dragging.startY;
+      setStickers(prev => prev.map(s =>
+        s.id === dragging.id ? { ...s, x: dragging.origX + dx, y: dragging.origY + dy } : s
+      ));
+    } else if (dragging.type === "resize") {
+      const delta = ((e.clientX - dragging.startX) + (e.clientY - dragging.startY)) / 2;
+      const newSize = Math.max(24, Math.min(130, dragging.origSize + delta));
+      setStickers(prev => prev.map(s =>
+        s.id === dragging.id ? { ...s, size: newSize } : s
+      ));
+    } else if (dragging.type === "rotate") {
+      const angle = Math.atan2(e.clientY - dragging.centerY, e.clientX - dragging.centerX) * 180 / Math.PI;
+      const newRotation = dragging.origRotation + (angle - dragging.startAngle);
+      setStickers(prev => prev.map(s =>
+        s.id === dragging.id ? { ...s, rotation: newRotation } : s
+      ));
+    }
   }
 
   function removeSticker(id) {
@@ -484,15 +564,37 @@ function StickerScreen({ captureData, onRetake }) {
     }
 
     for (const s of stickers) {
+      ctx.save();
+      ctx.translate(s.x + s.size / 2, s.y + s.size / 2);
+      ctx.rotate(((s.rotation || 0) * Math.PI) / 180);
       ctx.font = `${s.size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
-      ctx.textBaseline = "top";
-      ctx.textAlign = "left";
-      ctx.fillText(s.emoji, s.x, s.y);
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+      ctx.fillText(s.emoji, 0, 0);
+      ctx.restore();
+    }
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+
+    // Prova Web Share API (mobile)
+    if (navigator.canShare) {
+      try {
+        const blob = await fetch(dataUrl).then(r => r.blob());
+        const file = new File([blob], `photobooth-${Date.now()}.jpg`, { type: "image/jpeg" });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: "📸 Photobooth" });
+          setSaving(false);
+          return;
+        }
+      } catch (e) {
+        if (e.name === "AbortError") { setSaving(false); return; }
+        // altri errori → fallback download
+      }
     }
 
     const a = document.createElement("a");
     a.download = `photobooth-${Date.now()}.jpg`;
-    a.href = canvas.toDataURL("image/jpeg", 0.95);
+    a.href = dataUrl;
     a.click();
     setSaving(false);
   }
@@ -507,8 +609,8 @@ function StickerScreen({ captureData, onRetake }) {
             {selected ? "Trascina • doppio tap = elimina" : "Tocca uno sticker per aggiungerlo"}
           </div>
         </div>
-        <button className="btn-save" onClick={handleDownload} disabled={saving} aria-label="Scarica foto">
-          {saving ? "⏳ Salvataggio…" : "⬇ Salva"}
+        <button className="btn-save" onClick={handleDownload} disabled={saving} aria-label="Condividi o scarica foto">
+          {saving ? "⏳ …" : navigator.canShare ? "↗ Condividi" : "⬇ Salva"}
         </button>
       </div>
 
@@ -533,7 +635,7 @@ function StickerScreen({ captureData, onRetake }) {
           <div
             key={s.id}
             className={`stk-el${selected === s.id ? " sel" : ""}`}
-            style={{ left: s.x, top: s.y, fontSize: s.size }}
+            style={{ left: s.x, top: s.y, fontSize: s.size, transform: `rotate(${s.rotation || 0}deg)` }}
             onPointerDown={e => handleStickerDown(e, s)}
             onPointerMove={handleStickerMove}
             onPointerUp={() => setDragging(null)}
@@ -542,16 +644,30 @@ function StickerScreen({ captureData, onRetake }) {
             aria-label={`Sticker ${s.emoji}, trascina per spostare`}
           >
             {s.emoji}
-            {selected === s.id && (
+            {selected === s.id && (<>
               <button
                 className="stk-delete"
                 onClick={e => { e.stopPropagation(); removeSticker(s.id); }}
                 onPointerDown={e => e.stopPropagation()}
                 aria-label={`Elimina sticker ${s.emoji}`}
-              >
-                ✕
-              </button>
-            )}
+              >✕</button>
+              <div
+                className="stk-handle stk-handle-rotate"
+                onPointerDown={e => handleRotateDown(e, s)}
+                onPointerMove={handleStickerMove}
+                onPointerUp={() => setDragging(null)}
+                aria-label="Ruota"
+                role="button"
+              >↻</div>
+              <div
+                className="stk-handle stk-handle-resize"
+                onPointerDown={e => handleResizeDown(e, s)}
+                onPointerMove={handleStickerMove}
+                onPointerUp={() => setDragging(null)}
+                aria-label="Ridimensiona"
+                role="button"
+              >⤡</div>
+            </>)}
           </div>
         ))}
       </div>
