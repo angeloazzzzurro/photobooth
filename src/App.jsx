@@ -359,24 +359,26 @@ function CameraScreen({ onCapture }) {
             <div>Camera non disponibile</div>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            className="cam-video"
-            style={{
-              filter: style.filter === "none" ? undefined : style.filter,
-              transform: facingMode === "user" ? "scaleX(-1)" : "none",
-            }}
-            autoPlay playsInline muted
-            aria-label="Anteprima camera"
-          />
-          <button
-            className="cam-switch"
-            onClick={switchCamera}
-            disabled={capturing}
-            aria-label="Cambia fotocamera"
-          >
-            🔄
-          </button>
+          <>
+            <video
+              ref={videoRef}
+              className="cam-video"
+              style={{
+                filter: style.filter === "none" ? undefined : style.filter,
+                transform: facingMode === "user" ? "scaleX(-1)" : "none",
+              }}
+              autoPlay playsInline muted
+              aria-label="Anteprima camera"
+            />
+            <button
+              className="cam-switch"
+              onClick={switchCamera}
+              disabled={capturing}
+              aria-label="Cambia fotocamera"
+            >
+              🔄
+            </button>
+          </>
         )}
 
         {shotProgress && (
