@@ -88,6 +88,40 @@ const FRAMES = [
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let stickerCounter = 0;
 
+// ─── IndexedDB Gallery ──────────────────────────────────────────────────────────
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open("photobooth-gallery", 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore("photos", { keyPath: "id", autoIncrement: true });
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = rej;
+  });
+}
+async function dbSavePhoto(dataUrl) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("photos", "readwrite");
+    tx.objectStore("photos").add({ dataUrl, date: Date.now() });
+    tx.oncomplete = res; tx.onerror = rej;
+  });
+}
+async function dbLoadPhotos() {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const req = db.transaction("photos", "readonly").objectStore("photos").getAll();
+    req.onsuccess = e => res([...e.target.result].reverse());
+    req.onerror = rej;
+  });
+}
+async function dbDeletePhoto(id) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("photos", "readwrite");
+    tx.objectStore("photos").delete(id);
+    tx.oncomplete = res; tx.onerror = rej;
+  });
+}
+
 // ─── Global CSS ────────────────────────────────────────────────────────────────
 
 const CSS = `
@@ -256,13 +290,13 @@ const CSS = `
   .photo-area {
     flex:1; display:flex; align-items:center; justify-content:center;
     background:#1C1C1E; padding:20px 16px;
-    touch-action:none; user-select:none; min-height:0;
-    overflow:hidden;
+    min-height:0; overflow-y:auto;
   }
 
   /* ── Photo card: the physical strip / print ── */
   .photo-card {
     position:relative; flex-shrink:0;
+    touch-action:none; user-select:none;
     box-shadow:0 10px 40px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.35);
   }
   .photo-card.is-strip {
@@ -524,11 +558,73 @@ const CSS = `
   .stk-handle { width:26px; height:26px; font-size:13px; }
   .stk-handle-resize { bottom:-13px; right:-13px; }
   .stk-handle-rotate { top:-13px; }
+
+  /* ── Gallery button (camera controls) ── */
+  .gallery-btn {
+    width:44px; height:44px; border-radius:50%;
+    background:rgba(255,255,255,.6); border:1px solid rgba(0,0,0,.1);
+    color:#1C1C1E; font-size:20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 1px 4px rgba(0,0,0,.06); transition:transform .1s;
+  }
+  .gallery-btn:active { transform:scale(.9); }
+
+  /* ── Gallery screen ── */
+  .gallery-screen { display:flex; flex-direction:column; height:100%; }
+  .gallery-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px;
+    background:rgba(255,255,255,.78); backdrop-filter:blur(24px) saturate(180%);
+    border-bottom:1px solid rgba(0,0,0,.07); flex-shrink:0;
+  }
+  .gallery-title { font-size:15px; font-weight:600; color:#1C1C1E; }
+  .gallery-count { font-size:12px; color:rgba(0,0,0,.4); }
+  .gallery-body { flex:1; overflow-y:auto; padding:3px; background:#1C1C1E; }
+  .gallery-empty {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    height:100%; color:rgba(255,255,255,.4); font-size:14px; gap:12px; padding:40px;
+    text-align:center;
+  }
+  .gallery-empty-icon { font-size:52px; opacity:.5; }
+  .gallery-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; }
+  .gallery-thumb {
+    aspect-ratio:1; overflow:hidden; cursor:pointer;
+    background:#333; transition:opacity .12s;
+  }
+  .gallery-thumb:active { opacity:.7; }
+  .gallery-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+  .gallery-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.9);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:500; padding:20px; gap:20px;
+    animation:overlay-in .15s ease-out both;
+  }
+  .gallery-view-img {
+    max-width:100%; max-height:calc(100dvh - 140px);
+    object-fit:contain; border-radius:6px;
+    box-shadow:0 8px 40px rgba(0,0,0,.6);
+  }
+  .gallery-view-actions { display:flex; gap:12px; }
+  .gallery-view-btn {
+    padding:12px 24px; border-radius:20px; border:none;
+    font-size:14px; font-weight:600; cursor:pointer;
+    transition:transform .1s;
+  }
+  .gallery-view-btn:active { transform:scale(.95); }
+  .gallery-view-btn.primary { background:linear-gradient(135deg,#007AFF,#5856D6); color:#fff; box-shadow:0 4px 14px rgba(0,122,255,.35); }
+  .gallery-view-btn.danger { background:rgba(255,59,48,.15); color:#FF3B30; border:1px solid rgba(255,59,48,.3); }
+  .gallery-view-close {
+    position:absolute; top:16px; right:16px;
+    width:36px; height:36px; border-radius:50%;
+    background:rgba(255,255,255,.12); border:none;
+    color:#fff; font-size:18px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
 `;
 
 // ─── Camera Screen ─────────────────────────────────────────────────────────────
 
-function CameraScreen({ onCapture }) {
+function CameraScreen({ onCapture, onGallery }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [style, setStyle] = useState(PHOTO_STYLES[0]);
@@ -729,7 +825,7 @@ function CameraScreen({ onCapture }) {
           <div className="shutter-inner" />
         </button>
 
-        <div style={{ width: 56 }} />
+        <button className="gallery-btn" onClick={onGallery} aria-label="Apri galleria">🖼️</button>
       </div>
     </div>
   );
@@ -737,7 +833,7 @@ function CameraScreen({ onCapture }) {
 
 // ─── Sticker Screen ────────────────────────────────────────────────────────────
 
-function StickerScreen({ captureData, onRetake }) {
+function StickerScreen({ captureData, onRetake, onGallery }) {
   const { photos, style, isStrip } = captureData;
   const containerRef = useRef(null);
   const [stickers, setStickers] = useState([]);
@@ -994,6 +1090,7 @@ function StickerScreen({ captureData, onRetake }) {
         const file = new File([blob], `photobooth-${Date.now()}.jpg`, { type: "image/jpeg" });
         if (navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], title: "📸 Photobooth" });
+          dbSavePhoto(dataUrl);
           setSaving(false);
           showToast("✅ Condivisa!");
           return;
@@ -1003,6 +1100,7 @@ function StickerScreen({ captureData, onRetake }) {
       }
     }
 
+    dbSavePhoto(dataUrl);
     const a = document.createElement("a");
     a.download = `photobooth-${Date.now()}.jpg`;
     a.href = dataUrl;
@@ -1031,7 +1129,10 @@ function StickerScreen({ captureData, onRetake }) {
       {toast && <div className="toast" role="status">{toast}</div>}
 
       <div className="stk-header">
-        <button className="btn-ghost" onClick={() => setShowConfirm(true)}>← Ritatta</button>
+        <div style={{ display:"flex", gap:6 }}>
+          <button className="btn-ghost" onClick={() => setShowConfirm(true)}>← Ritatta</button>
+          <button className="btn-ghost" onClick={onGallery} aria-label="Galleria">🖼️</button>
+        </div>
         <div>
           <div className="stk-title">Sticker</div>
           <div className="stk-hint">
@@ -1218,10 +1319,72 @@ function StickerScreen({ captureData, onRetake }) {
   );
 }
 
+// ─── Gallery Screen ─────────────────────────────────────────────────────────────
+
+function GalleryScreen({ onBack }) {
+  const [photos, setPhotos] = useState([]);
+  const [viewing, setViewing] = useState(null);
+
+  useEffect(() => {
+    dbLoadPhotos().then(setPhotos).catch(() => {});
+  }, []);
+
+  function download(p) {
+    const a = document.createElement("a");
+    a.href = p.dataUrl;
+    a.download = `photobooth-${p.date}.jpg`;
+    a.click();
+  }
+
+  async function remove(id) {
+    await dbDeletePhoto(id);
+    setPhotos(prev => prev.filter(p => p.id !== id));
+    if (viewing?.id === id) setViewing(null);
+  }
+
+  return (
+    <div className="gallery-screen">
+      <div className="gallery-header">
+        <button className="btn-ghost" onClick={onBack}>← Indietro</button>
+        <span className="gallery-title">Galleria</span>
+        <span className="gallery-count">{photos.length} foto</span>
+      </div>
+      <div className="gallery-body">
+        {photos.length === 0 ? (
+          <div className="gallery-empty">
+            <div className="gallery-empty-icon">🖼️</div>
+            <div>Nessuna foto ancora.<br/>Scatta e salva per vederle qui.</div>
+          </div>
+        ) : (
+          <div className="gallery-grid">
+            {photos.map(p => (
+              <div key={p.id} className="gallery-thumb" onClick={() => setViewing(p)}>
+                <img src={p.dataUrl} alt="" />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {viewing && (
+        <div className="gallery-overlay" onClick={() => setViewing(null)}>
+          <button className="gallery-view-close" onClick={() => setViewing(null)}>✕</button>
+          <img className="gallery-view-img" src={viewing.dataUrl} alt="" onClick={e => e.stopPropagation()} />
+          <div className="gallery-view-actions" onClick={e => e.stopPropagation()}>
+            <button className="gallery-view-btn primary" onClick={() => download(viewing)}>⬇ Scarica</button>
+            <button className="gallery-view-btn danger" onClick={() => remove(viewing.id)}>🗑 Elimina</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── App ────────────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [capture, setCapture] = useState(null);
+  const [screen, setScreen] = useState("camera"); // "camera" | "sticker" | "gallery"
 
   useEffect(() => {
     const el = document.createElement("style");
@@ -1230,12 +1393,31 @@ export default function App() {
     return () => document.head.removeChild(el);
   }, []);
 
+  function handleCapture(cap) {
+    setCapture(cap);
+    setScreen("sticker");
+  }
+
+  function handleRetake() {
+    setCapture(null);
+    setScreen("camera");
+  }
+
   return (
     <div className="app">
-      {!capture ? (
-        <CameraScreen onCapture={setCapture} />
+      {screen === "gallery" ? (
+        <GalleryScreen onBack={() => setScreen(capture ? "sticker" : "camera")} />
+      ) : screen === "sticker" && capture ? (
+        <StickerScreen
+          captureData={capture}
+          onRetake={handleRetake}
+          onGallery={() => setScreen("gallery")}
+        />
       ) : (
-        <StickerScreen captureData={capture} onRetake={() => setCapture(null)} />
+        <CameraScreen
+          onCapture={handleCapture}
+          onGallery={() => setScreen("gallery")}
+        />
       )}
     </div>
   );
