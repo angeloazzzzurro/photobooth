@@ -3,14 +3,14 @@ import { useState, useRef, useEffect } from "react";
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const PHOTO_STYLES = [
-  { id: "original", name: "Original", filter: "none",                                                          icon: "📷" },
-  { id: "bw",       name: "B&W",      filter: "grayscale(100%) contrast(1.2)",                                 icon: "🎞️" },
-  { id: "vintage",  name: "Vintage",  filter: "sepia(0.8) brightness(1.1)",                                    icon: "🍂" },
-  { id: "neon",     name: "Neon",     filter: "saturate(2) hue-rotate(270deg) brightness(1.2) contrast(1.1)", icon: "⚡" },
-  { id: "dreamy",   name: "Dreamy",   filter: "brightness(1.15) saturate(1.5) contrast(0.9)",                  icon: "🌸" },
-  { id: "pop",      name: "Pop",      filter: "saturate(3) contrast(1.4)",                                     icon: "🎨" },
-  { id: "ice",      name: "Ice",      filter: "hue-rotate(195deg) saturate(1.5) brightness(1.1)",              icon: "❄️" },
-  { id: "golden",   name: "Golden",   filter: "sepia(0.4) saturate(2) brightness(1.1)",                       icon: "✨" },
+  { id: "original", name: "Original", filter: "none",                                                          swatch: "linear-gradient(135deg,#667eea,#764ba2)" },
+  { id: "bw",       name: "B&W",      filter: "grayscale(100%) contrast(1.2)",                                 swatch: "linear-gradient(135deg,#333,#999)" },
+  { id: "vintage",  name: "Vintage",  filter: "sepia(0.8) brightness(1.1)",                                    swatch: "linear-gradient(135deg,#c8913a,#8B5e14)" },
+  { id: "neon",     name: "Neon",     filter: "saturate(2) hue-rotate(270deg) brightness(1.2) contrast(1.1)", swatch: "linear-gradient(135deg,#ff00ff,#7700ff)" },
+  { id: "dreamy",   name: "Dreamy",   filter: "brightness(1.15) saturate(1.5) contrast(0.9)",                  swatch: "linear-gradient(135deg,#ffadd9,#dda0dd)" },
+  { id: "pop",      name: "Pop",      filter: "saturate(3) contrast(1.4)",                                     swatch: "linear-gradient(135deg,#ff4400,#ffcc00)" },
+  { id: "ice",      name: "Ice",      filter: "hue-rotate(195deg) saturate(1.5) brightness(1.1)",              swatch: "linear-gradient(135deg,#00d2ff,#1e6fff)" },
+  { id: "golden",   name: "Golden",   filter: "sepia(0.4) saturate(2) brightness(1.1)",                       swatch: "linear-gradient(135deg,#FFD700,#FF8C00)" },
 ];
 
 const STICKER_CATS = [
@@ -268,6 +268,136 @@ const CSS = `
 
   /* Salva loading */
   .btn-save:disabled { opacity:.65; cursor:not-allowed; transform:none !important; }
+
+  /* ── Transizioni schermata ── */
+  .cam-wrap  { animation:screen-in .22s ease-out both; }
+  .stk-screen { animation:screen-in .22s ease-out both; }
+  @keyframes screen-in { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+
+  /* ── Style bar con scroll indicator ── */
+  .style-bar-wrap {
+    position:relative; background:rgba(10,10,18,.97);
+    border-top:1px solid rgba(255,255,255,.05);
+  }
+  .style-bar-wrap::after {
+    content:''; position:absolute; right:0; top:0; bottom:0; width:48px;
+    background:linear-gradient(to right,transparent,rgba(10,10,18,.97));
+    pointer-events:none; transition:opacity .2s;
+  }
+  .style-bar-wrap.at-end::after { opacity:0; }
+  .style-bar { border-top:none; background:transparent; }
+
+  /* ── Swatch filtro (sostituisce icon) ── */
+  .style-chip { gap:5px; padding:8px 12px; }
+  .style-chip-swatch {
+    width:28px; height:28px; border-radius:50%;
+    border:2px solid rgba(255,255,255,.12); flex-shrink:0;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .style-chip.on .style-chip-swatch {
+    border-color:#FF6B9D;
+    box-shadow:0 0 0 2px rgba(255,107,157,.3);
+  }
+
+  /* ── Strip mode più prominente ── */
+  .mode-btn { width:72px; font-size:11px; }
+  .mode-btn-label { font-size:9px; opacity:.7; }
+
+  /* ── Pannello sticker collassabile ── */
+  .stk-panel-handle {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:9px 16px 6px; cursor:pointer; user-select:none;
+  }
+  .stk-panel-bar { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,.18); }
+  .stk-panel-label { font-size:11px; color:rgba(255,255,255,.3); }
+
+  /* ── Griglia sticker 4 col, touch target 44px ── */
+  .stk-grid { grid-template-columns:repeat(4,1fr); max-height:160px; }
+  .stk-pick { font-size:28px; min-height:52px; padding:8px 4px; }
+
+  /* ── Toast ── */
+  .toast {
+    position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+    background:rgba(18,18,32,.97); backdrop-filter:blur(12px);
+    color:#fff; padding:11px 22px; border-radius:24px;
+    font-size:13px; font-weight:500;
+    border:1px solid rgba(255,255,255,.1);
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+    animation:toast-in .2s ease-out both;
+    z-index:400; white-space:nowrap; pointer-events:none;
+  }
+  @keyframes toast-in {
+    from{opacity:0;transform:translateX(-50%) translateY(8px)}
+    to  {opacity:1;transform:translateX(-50%) translateY(0)}
+  }
+
+  /* ── Confirm dialog ── */
+  .confirm-overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.65);
+    backdrop-filter:blur(4px); z-index:300;
+    display:flex; align-items:flex-end; justify-content:center;
+    padding:0 16px 32px;
+    animation:overlay-in .15s ease-out both;
+  }
+  @keyframes overlay-in { from{opacity:0} to{opacity:1} }
+  .confirm-sheet {
+    background:#14142A; border-radius:20px; border:1px solid rgba(255,255,255,.07);
+    padding:24px; width:100%; max-width:398px;
+    animation:sheet-up .22s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  @keyframes sheet-up { from{transform:translateY(20px);opacity:0} to{transform:none;opacity:1} }
+  .confirm-title { font-size:16px; font-weight:600; margin-bottom:6px; }
+  .confirm-desc  { font-size:13px; color:rgba(255,255,255,.45); margin-bottom:22px; line-height:1.5; }
+  .confirm-actions { display:flex; gap:10px; }
+  .confirm-cancel {
+    flex:1; padding:13px; border-radius:12px;
+    border:1.5px solid rgba(255,255,255,.15);
+    background:transparent; color:#fff; cursor:pointer;
+    font-size:14px; font-weight:500;
+  }
+  .confirm-ok {
+    flex:1; padding:13px; border-radius:12px;
+    border:none; background:#FF4444; color:#fff;
+    cursor:pointer; font-size:14px; font-weight:600;
+  }
+
+  /* ── Strip tooltip ── */
+  .mode-wrap { position:relative; display:inline-flex; }
+  .strip-tooltip {
+    position:absolute; bottom:calc(100% + 10px); left:50%;
+    transform:translateX(-50%);
+    background:rgba(192,132,252,.15); border:1px solid rgba(192,132,252,.5);
+    color:#C084FC; padding:8px 14px; border-radius:12px;
+    font-size:11px; font-weight:500; white-space:nowrap;
+    animation:tooltip-pop .25s cubic-bezier(.34,1.56,.64,1) both;
+    pointer-events:none; z-index:20;
+  }
+  .strip-tooltip::after {
+    content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+    border:5px solid transparent; border-top-color:rgba(192,132,252,.5);
+  }
+  @keyframes tooltip-pop {
+    from{opacity:0;transform:translateX(-50%) translateY(6px)}
+    to  {opacity:1;transform:translateX(-50%) translateY(0)}
+  }
+
+  /* ── Undo button ── */
+  .undo-btn {
+    position:absolute; top:12px; left:12px;
+    width:40px; height:40px; border-radius:50%;
+    background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
+    border:1.5px solid rgba(255,255,255,.15);
+    color:#fff; font-size:17px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .1s, opacity .2s; z-index:5;
+  }
+  .undo-btn:not(:disabled):active { transform:scale(.88); }
+  .undo-btn:disabled { opacity:.2; cursor:not-allowed; }
+
+  /* ── Handles più grandi e spaziati ── */
+  .stk-handle { width:26px; height:26px; font-size:13px; }
+  .stk-handle-resize { bottom:-13px; right:-13px; }
+  .stk-handle-rotate { top:-13px; }
 `;
 
 // ─── Camera Screen ─────────────────────────────────────────────────────────────
@@ -284,11 +414,33 @@ function CameraScreen({ onCapture }) {
   const [camError, setCamError] = useState(false);
   const [shotProgress, setShotProgress] = useState(null);
   const [facingMode, setFacingMode] = useState("user");
+  const [atEnd, setAtEnd] = useState(false);
+  const [showStripTooltip, setShowStripTooltip] = useState(false);
+  const styleBarRef = useRef(null);
 
   useEffect(() => {
     startCamera("user");
     return () => streamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
+
+  useEffect(() => {
+    const bar = styleBarRef.current;
+    if (!bar) return;
+    const check = () => setAtEnd(bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 4);
+    bar.addEventListener("scroll", check);
+    check();
+    return () => bar.removeEventListener("scroll", check);
+  }, []);
+
+  function toggleStripMode() {
+    const next = !stripMode;
+    setStripMode(next);
+    if (next && !localStorage.getItem("stripSeen")) {
+      localStorage.setItem("stripSeen", "1");
+      setShowStripTooltip(true);
+      setTimeout(() => setShowStripTooltip(false), 3000);
+    }
+  }
 
   async function startCamera(mode) {
     try {
@@ -406,31 +558,41 @@ function CameraScreen({ onCapture }) {
         )}
       </div>
 
-      <div className="style-bar" role="group" aria-label="Stili fotografici">
-        {PHOTO_STYLES.map(s => (
-          <button
-            key={s.id}
-            className={`style-chip${style.id === s.id ? " on" : ""}`}
-            onClick={() => setStyle(s)}
-            aria-pressed={style.id === s.id}
-            aria-label={`Filtro ${s.name}`}
-          >
-            <span className="style-chip-icon" aria-hidden="true">{s.icon}</span>
-            {s.name}
-          </button>
-        ))}
+      <div className={`style-bar-wrap${atEnd ? " at-end" : ""}`}>
+        <div className="style-bar" ref={styleBarRef} role="group" aria-label="Stili fotografici">
+          {PHOTO_STYLES.map(s => (
+            <button
+              key={s.id}
+              className={`style-chip${style.id === s.id ? " on" : ""}`}
+              onClick={() => setStyle(s)}
+              aria-pressed={style.id === s.id}
+              aria-label={`Filtro ${s.name}`}
+            >
+              <div className="style-chip-swatch" style={{ background: s.swatch }} aria-hidden="true" />
+              {s.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="cam-controls">
-        <button
-          className={`mode-btn${stripMode ? " on" : ""}`}
-          onClick={() => setStripMode(v => !v)}
-          aria-pressed={stripMode}
-          aria-label={stripMode ? "Modalità strip attiva (4 foto)" : "Modalità singola foto"}
-        >
-          <span className="mode-btn-icon" aria-hidden="true">{stripMode ? "🎞️" : "📷"}</span>
-          {stripMode ? "Strip" : "Single"}
-        </button>
+        <div className="mode-wrap">
+          {showStripTooltip && (
+            <div className="strip-tooltip" role="status">
+              🎞️ 4 foto in sequenza!
+            </div>
+          )}
+          <button
+            className={`mode-btn${stripMode ? " on" : ""}`}
+            onClick={toggleStripMode}
+            aria-pressed={stripMode}
+            aria-label={stripMode ? "Modalità strip attiva (4 foto)" : "Modalità singola foto"}
+          >
+            <span className="mode-btn-icon" aria-hidden="true">{stripMode ? "🎞️" : "📷"}</span>
+            {stripMode ? "Strip" : "Single"}
+            {stripMode && <span className="mode-btn-label">4 foto</span>}
+          </button>
+        </div>
 
         <button
           className="shutter"
@@ -453,14 +615,44 @@ function StickerScreen({ captureData, onRetake }) {
   const { photos, style, isStrip } = captureData;
   const containerRef = useRef(null);
   const [stickers, setStickers] = useState([]);
+  const [stickerHistory, setStickerHistory] = useState([]);
   const [activeCat, setActiveCat] = useState(0);
   const [dragging, setDragging] = useState(null);
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  // Ctrl+Z undo
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        setStickerHistory(prev => {
+          if (!prev.length) return prev;
+          setStickers(prev[prev.length - 1]);
+          return prev.slice(0, -1);
+        });
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  function saveSnapshot(snap) {
+    setStickerHistory(prev => [...prev.slice(-15), snap]);
+  }
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  }
 
   function addSticker(emoji) {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
+    saveSnapshot(stickers);
     const id = ++stickerCounter;
     const size = 52;
     setStickers(prev => [...prev, {
@@ -475,18 +667,21 @@ function StickerScreen({ captureData, onRetake }) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     setSelected(sticker.id);
+    saveSnapshot(stickers);
     setDragging({ type: "move", id: sticker.id, origX: sticker.x, origY: sticker.y, startX: e.clientX, startY: e.clientY });
   }
 
   function handleResizeDown(e, sticker) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
+    saveSnapshot(stickers);
     setDragging({ type: "resize", id: sticker.id, origSize: sticker.size, startX: e.clientX, startY: e.clientY });
   }
 
   function handleRotateDown(e, sticker) {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
+    saveSnapshot(stickers);
     const rect = containerRef.current.getBoundingClientRect();
     const centerX = rect.left + sticker.x + sticker.size / 2;
     const centerY = rect.top + sticker.y + sticker.size / 2;
@@ -518,6 +713,7 @@ function StickerScreen({ captureData, onRetake }) {
   }
 
   function removeSticker(id) {
+    saveSnapshot(stickers);
     setStickers(prev => prev.filter(s => s.id !== id));
     if (selected === id) setSelected(null);
   }
@@ -586,11 +782,11 @@ function StickerScreen({ captureData, onRetake }) {
         if (navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], title: "📸 Photobooth" });
           setSaving(false);
+          showToast("✅ Condivisa!");
           return;
         }
       } catch (e) {
         if (e.name === "AbortError") { setSaving(false); return; }
-        // altri errori → fallback download
       }
     }
 
@@ -599,16 +795,34 @@ function StickerScreen({ captureData, onRetake }) {
     a.href = dataUrl;
     a.click();
     setSaving(false);
+    showToast("✅ Foto salvata!");
   }
 
   return (
     <div className="stk-screen">
+      {/* Confirm dialog ritatta */}
+      {showConfirm && (
+        <div className="confirm-overlay" onClick={() => setShowConfirm(false)}>
+          <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">Ritattare?</div>
+            <div className="confirm-desc">Perderai tutti gli sticker aggiunti. La foto verrà eliminata.</div>
+            <div className="confirm-actions">
+              <button className="confirm-cancel" onClick={() => setShowConfirm(false)}>Annulla</button>
+              <button className="confirm-ok" onClick={onRetake}>Sì, ritatta</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && <div className="toast" role="status">{toast}</div>}
+
       <div className="stk-header">
-        <button className="btn-ghost" onClick={onRetake}>← Ritatta</button>
+        <button className="btn-ghost" onClick={() => setShowConfirm(true)}>← Ritatta</button>
         <div>
           <div className="stk-title">Sticker</div>
           <div className="stk-hint">
-            {selected ? "Trascina • doppio tap = elimina" : "Tocca uno sticker per aggiungerlo"}
+            {selected ? "Trascina • ✕ elimina • ↻⤡ modifica" : "Tocca uno sticker per aggiungerlo"}
           </div>
         </div>
         <button className="btn-save" onClick={handleDownload} disabled={saving} aria-label="Condividi o scarica foto">
@@ -632,6 +846,18 @@ function StickerScreen({ captureData, onRetake }) {
         ) : (
           <img className="photo-fit" src={photos[0]} style={{ filter: style.filter }} alt="" />
         )}
+
+        {/* Undo button */}
+        <button
+          className="undo-btn"
+          onClick={() => setStickerHistory(prev => {
+            if (!prev.length) return prev;
+            setStickers(prev[prev.length - 1]);
+            return prev.slice(0, -1);
+          })}
+          disabled={stickerHistory.length === 0}
+          aria-label="Annulla ultima azione"
+        >↩</button>
 
         {stickers.map(s => (
           <div
@@ -675,32 +901,46 @@ function StickerScreen({ captureData, onRetake }) {
       </div>
 
       <div className="stk-panel">
-        <div className="cat-tabs" role="tablist" aria-label="Categorie sticker">
-          {STICKER_CATS.map((c, i) => (
-            <button
-              key={i}
-              role="tab"
-              aria-selected={activeCat === i}
-              className={`cat-tab${activeCat === i ? " on" : ""}`}
-              onClick={() => setActiveCat(i)}
-              aria-label={`Categoria ${c.cat}`}
-            >
-              {c.cat}
-            </button>
-          ))}
+        {/* Handle collassabile */}
+        <div
+          className="stk-panel-handle"
+          onClick={() => setPanelOpen(v => !v)}
+          role="button"
+          aria-expanded={panelOpen}
+          aria-label={panelOpen ? "Chiudi pannello sticker" : "Apri pannello sticker"}
+        >
+          <div className="stk-panel-bar" />
+          <span className="stk-panel-label">{panelOpen ? "Nascondi" : "Sticker"}</span>
         </div>
-        <div className="stk-grid" role="tabpanel">
-          {STICKER_CATS[activeCat].items.map((emoji, i) => (
-            <button
-              key={i}
-              className="stk-pick"
-              onClick={() => addSticker(emoji)}
-              aria-label={`Aggiungi sticker ${emoji}`}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
+
+        {panelOpen && (<>
+          <div className="cat-tabs" role="tablist" aria-label="Categorie sticker">
+            {STICKER_CATS.map((c, i) => (
+              <button
+                key={i}
+                role="tab"
+                aria-selected={activeCat === i}
+                className={`cat-tab${activeCat === i ? " on" : ""}`}
+                onClick={() => setActiveCat(i)}
+                aria-label={`Categoria ${c.cat}`}
+              >
+                {c.cat}
+              </button>
+            ))}
+          </div>
+          <div className="stk-grid" role="tabpanel">
+            {STICKER_CATS[activeCat].items.map((emoji, i) => (
+              <button
+                key={i}
+                className="stk-pick"
+                onClick={() => addSticker(emoji)}
+                aria-label={`Aggiungi sticker ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </>)}
       </div>
     </div>
   );
