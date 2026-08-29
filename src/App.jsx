@@ -22,13 +22,76 @@ const STICKER_CATS = [
   { cat: "💪", items: ["💯","🔥","✅","💪","👍","✌️","🤙","🙌","👏","🤝","🫶","🧿","😏","🫠","🤌"] },
 ];
 
+const FRAMES = [
+  {
+    id: "classic", name: "Classic",
+    bg: "#f5f2ea", accent: "#2b2b2b",
+    pad: 16, gap: 6, radius: 4,
+    decorations: [],
+    label: null,
+    swatch: "linear-gradient(135deg,#fdfcf8,#e8e4d8)",
+  },
+  {
+    id: "sakura", name: "Sakura",
+    bg: "repeating-linear-gradient(90deg,#ffd9e8 0px,#ffd9e8 14px,#ffc2dc 14px,#ffc2dc 28px)",
+    canvasStripe: ["#ffd9e8", "#ffc2dc"],
+    accent: "#d6336c",
+    pad: 18, gap: 8, radius: 6,
+    decorations: [
+      { emoji: "🎀", top: "1.5%", left: "4%", size: 34, rotate: -15 },
+      { emoji: "⭐", top: "2.5%", right: "6%", size: 24, rotate: 12 },
+      { emoji: "🍡", bottom: "17%", right: "5%", size: 28, rotate: 0 },
+    ],
+    label: { text: "photo booth" },
+    swatch: "repeating-linear-gradient(90deg,#ffd9e8,#ffd9e8 6px,#ffc2dc 6px,#ffc2dc 12px)",
+  },
+  {
+    id: "sky", name: "Sky Ribbon",
+    bg: "repeating-linear-gradient(90deg,#cfe8ff 0px,#cfe8ff 14px,#bcdcff 14px,#bcdcff 28px)",
+    canvasStripe: ["#cfe8ff", "#bcdcff"],
+    accent: "#1c6fd8",
+    pad: 18, gap: 8, radius: 6,
+    decorations: [
+      { emoji: "🎀", top: "1.5%", left: "5%", size: 30, rotate: -10 },
+      { emoji: "💗", top: "2.5%", right: "5%", size: 24, rotate: 8 },
+      { emoji: "🎵", bottom: "19%", left: "5%", size: 22, rotate: -8 },
+    ],
+    label: { text: "sweet day" },
+    swatch: "repeating-linear-gradient(90deg,#cfe8ff,#cfe8ff 6px,#bcdcff 6px,#bcdcff 12px)",
+  },
+  {
+    id: "mint", name: "Mint Dash",
+    bg: "#cdeede", accent: "#1f7a52",
+    pad: 18, gap: 8, radius: 6,
+    dashedPhotoBorder: true,
+    decorations: [
+      { emoji: "🐸", top: "1.5%", right: "5%", size: 32, rotate: 6 },
+      { emoji: "🌿", bottom: "19%", left: "4%", size: 24, rotate: -6 },
+    ],
+    label: { text: "playground" },
+    swatch: "#cdeede",
+  },
+  {
+    id: "sunny", name: "Sunny Star",
+    bg: "#fff3b0", accent: "#c9820a",
+    pad: 18, gap: 8, radius: 6,
+    decorations: [
+      { emoji: "⭐", top: "1.5%", left: "4%", size: 30, rotate: -12 },
+      { emoji: "✨", top: "2.5%", right: "6%", size: 22, rotate: 10 },
+      { emoji: "❤️", bottom: "18%", right: "5%", size: 24, rotate: 0 },
+    ],
+    label: { text: "good day" },
+    swatch: "#fff3b0",
+  },
+];
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let stickerCounter = 0;
 
 // ─── Global CSS ────────────────────────────────────────────────────────────────
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Yomogi&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { background:#0A0A12; overflow:hidden; font-family:'DM Sans',system-ui,sans-serif; }
 
@@ -182,16 +245,49 @@ const CSS = `
 
   .photo-area {
     flex:1; position:relative; overflow:hidden;
-    background:#000; display:flex; align-items:stretch;
+    background:#000; display:flex; flex-direction:column; align-items:stretch;
     touch-action:none; user-select:none; min-height:0;
+    transition:background .2s;
   }
 
-  .photo-fit { width:100%; height:100%; object-fit:cover; pointer-events:none; display:block; }
+  /* ── Frame bar ── */
+  .frame-bar-wrap {
+    position:relative; background:rgba(10,10,18,.97);
+    border-bottom:1px solid rgba(255,255,255,.06); flex-shrink:0;
+  }
+  .frame-bar { display:flex; gap:6px; padding:9px 12px; overflow-x:auto; scrollbar-width:none; }
+  .frame-bar::-webkit-scrollbar { display:none; }
+  .frame-chip {
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:6px 12px; border-radius:16px;
+    border:1.5px solid transparent;
+    background:rgba(255,255,255,.06);
+    color:rgba(255,255,255,.45);
+    cursor:pointer; font-size:10px; font-weight:500;
+    white-space:nowrap; flex-shrink:0; transition:all .15s;
+  }
+  .frame-chip.on { border-color:#C084FC; background:rgba(192,132,252,.15); color:#C084FC; }
+  .frame-chip-swatch {
+    width:24px; height:24px; border-radius:50%;
+    border:2px solid rgba(255,255,255,.15); flex-shrink:0;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .frame-chip.on .frame-chip-swatch { border-color:#C084FC; box-shadow:0 0 0 2px rgba(192,132,252,.3); }
 
-  .strip-wrap { display:flex; flex-direction:column; width:100%; height:100%; }
-  .strip-frame { flex:1; overflow:hidden; position:relative; }
-  .strip-frame:not(:last-child) { border-bottom:2px solid #0A0A12; }
-  .strip-frame img { width:100%; height:100%; object-fit:cover; display:block; }
+  /* ── Frame rendering ── */
+  .frame-deco {
+    position:absolute; pointer-events:none; line-height:1; z-index:1;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.3));
+  }
+  .frame-strip { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  .frame-photo { flex:1; overflow:hidden; position:relative; background:rgba(0,0,0,.15); }
+  .frame-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+  .frame-single { flex:1 1 auto; min-height:0; overflow:hidden; position:relative; background:rgba(0,0,0,.15); }
+  .frame-single img { width:100%; height:100%; object-fit:cover; display:block; }
+  .frame-label {
+    flex-shrink:0; text-align:center; padding:6px 0 0;
+    font-family:'Yomogi',cursive; font-size:20px; letter-spacing:.5px;
+  }
 
   .stk-el {
     position:absolute; cursor:grab; user-select:none;
@@ -617,6 +713,7 @@ function StickerScreen({ captureData, onRetake }) {
   const [stickers, setStickers] = useState([]);
   const [stickerHistory, setStickerHistory] = useState([]);
   const [activeCat, setActiveCat] = useState(0);
+  const [frame, setFrame] = useState(FRAMES[0]);
   const [dragging, setDragging] = useState(null);
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -727,6 +824,26 @@ function StickerScreen({ captureData, onRetake }) {
     });
   }
 
+  function roundRectPath(ctx, x, y, w, h, r) {
+    const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function decoCenter(dec, rect) {
+    let x, y;
+    if (dec.left != null) x = (parseFloat(dec.left) / 100) * rect.width + dec.size / 2;
+    else x = rect.width - (parseFloat(dec.right) / 100) * rect.width - dec.size / 2;
+    if (dec.top != null) y = (parseFloat(dec.top) / 100) * rect.height + dec.size / 2;
+    else y = rect.height - (parseFloat(dec.bottom) / 100) * rect.height - dec.size / 2;
+    return { x, y };
+  }
+
   async function handleDownload() {
     if (saving) return;
     setSaving(true);
@@ -741,24 +858,90 @@ function StickerScreen({ captureData, onRetake }) {
     ctx.scale(scale, scale);
 
     const f = style.filter !== "none" ? style.filter : "";
+    const LABEL_H = 34;
+    const padBottom = frame.pad + (frame.label ? LABEL_H : 0);
+
+    // Frame background
+    if (frame.canvasStripe) {
+      const stripeW = 14;
+      for (let x = 0; x < rect.width; x += stripeW * 2) {
+        ctx.fillStyle = frame.canvasStripe[0];
+        ctx.fillRect(x, 0, stripeW, rect.height);
+        ctx.fillStyle = frame.canvasStripe[1];
+        ctx.fillRect(x + stripeW, 0, stripeW, rect.height);
+      }
+    } else {
+      ctx.fillStyle = frame.bg;
+      ctx.fillRect(0, 0, rect.width, rect.height);
+    }
+
+    const innerX = frame.pad;
+    const innerY = frame.pad;
+    const innerW = rect.width - frame.pad * 2;
+    const innerH = rect.height - frame.pad - padBottom;
 
     if (!isStrip) {
       const img = await loadImage(photos[0]);
+      ctx.save();
+      roundRectPath(ctx, innerX, innerY, innerW, innerH, frame.radius);
+      ctx.clip();
       if (f) ctx.filter = f;
-      ctx.drawImage(img, 0, 0, rect.width, rect.height);
-      ctx.filter = "";
+      ctx.drawImage(img, innerX, innerY, innerW, innerH);
+      ctx.restore();
+      if (frame.dashedPhotoBorder) {
+        ctx.save();
+        ctx.strokeStyle = frame.accent;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        roundRectPath(ctx, innerX, innerY, innerW, innerH, frame.radius);
+        ctx.stroke();
+        ctx.restore();
+      }
     } else {
-      const h = rect.height / photos.length;
+      const h = (innerH - frame.gap * (photos.length - 1)) / photos.length;
       for (let i = 0; i < photos.length; i++) {
         const img = await loadImage(photos[i]);
+        const y = innerY + i * (h + frame.gap);
+        ctx.save();
+        roundRectPath(ctx, innerX, y, innerW, h, frame.radius);
+        ctx.clip();
         if (f) ctx.filter = f;
-        ctx.drawImage(img, 0, i * h, rect.width, h);
-        ctx.filter = "";
-        if (i < photos.length - 1) {
-          ctx.fillStyle = "#0A0A12";
-          ctx.fillRect(0, (i + 1) * h - 1, rect.width, 2);
+        ctx.drawImage(img, innerX, y, innerW, h);
+        ctx.restore();
+        if (frame.dashedPhotoBorder) {
+          ctx.save();
+          ctx.strokeStyle = frame.accent;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          roundRectPath(ctx, innerX, y, innerW, h, frame.radius);
+          ctx.stroke();
+          ctx.restore();
         }
       }
+    }
+    ctx.filter = "";
+
+    // Frame decorations
+    for (const dec of frame.decorations) {
+      const { x, y } = decoCenter(dec, rect);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(((dec.rotate || 0) * Math.PI) / 180);
+      ctx.font = `${dec.size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(dec.emoji, 0, 0);
+      ctx.restore();
+    }
+
+    // Frame label
+    if (frame.label) {
+      try { await document.fonts.load(`20px "Yomogi"`); } catch {}
+      ctx.fillStyle = frame.accent;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `20px "Yomogi",cursive`;
+      ctx.fillText(frame.label.text, rect.width / 2, rect.height - padBottom + LABEL_H / 2 + 3);
     }
 
     for (const s of stickers) {
@@ -830,21 +1013,76 @@ function StickerScreen({ captureData, onRetake }) {
         </button>
       </div>
 
+      <div className="frame-bar-wrap">
+        <div className="frame-bar" role="group" aria-label="Cornici">
+          {FRAMES.map(fr => (
+            <button
+              key={fr.id}
+              className={`frame-chip${frame.id === fr.id ? " on" : ""}`}
+              onClick={() => setFrame(fr)}
+              aria-pressed={frame.id === fr.id}
+              aria-label={`Cornice ${fr.name}`}
+            >
+              <div className="frame-chip-swatch" style={{ background: fr.swatch }} aria-hidden="true" />
+              {fr.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div
         className="photo-area"
         ref={containerRef}
         onClick={() => setSelected(null)}
+        style={{
+          background: frame.bg,
+          padding: frame.pad,
+          paddingBottom: frame.pad + (frame.label ? 34 : 0),
+        }}
       >
+        {frame.decorations.map((dec, i) => (
+          <div
+            key={i}
+            className="frame-deco"
+            aria-hidden="true"
+            style={{
+              top: dec.top, left: dec.left, right: dec.right, bottom: dec.bottom,
+              fontSize: dec.size, transform: `rotate(${dec.rotate || 0}deg)`,
+            }}
+          >
+            {dec.emoji}
+          </div>
+        ))}
+
         {isStrip ? (
-          <div className="strip-wrap">
+          <div className="frame-strip" style={{ gap: frame.gap }}>
             {photos.map((p, i) => (
-              <div key={i} className="strip-frame">
+              <div
+                key={i}
+                className="frame-photo"
+                style={{
+                  borderRadius: frame.radius,
+                  border: frame.dashedPhotoBorder ? `2px dashed ${frame.accent}` : undefined,
+                }}
+              >
                 <img src={p} style={{ filter: style.filter }} alt="" />
               </div>
             ))}
           </div>
         ) : (
-          <img className="photo-fit" src={photos[0]} style={{ filter: style.filter }} alt="" />
+          <div
+            className="frame-single"
+            style={{
+              borderRadius: frame.radius,
+              border: frame.dashedPhotoBorder ? `2px dashed ${frame.accent}` : undefined,
+            }}
+          >
+            <img src={photos[0]} style={{ filter: style.filter }} alt="" />
+          </div>
+        )}
+
+        {frame.label && (
+          <div className="frame-label" style={{ color: frame.accent }}>{frame.label.text}</div>
         )}
 
         {/* Undo button */}
