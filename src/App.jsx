@@ -254,11 +254,22 @@ const CSS = `
   .btn-save:active { transform:scale(.97); }
 
   .photo-area {
-    flex:1; position:relative; overflow:hidden;
-    background:#000; display:flex; flex-direction:column; align-items:stretch;
+    flex:1; display:flex; align-items:center; justify-content:center;
+    background:#1C1C1E; padding:20px 16px;
     touch-action:none; user-select:none; min-height:0;
-    transition:background .2s;
+    overflow:hidden;
   }
+
+  /* ── Photo card: the physical strip / print ── */
+  .photo-card {
+    position:relative; flex-shrink:0;
+    box-shadow:0 10px 40px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.35);
+  }
+  .photo-card.is-strip {
+    align-self:stretch; width:min(185px,50vw);
+    display:flex; flex-direction:column;
+  }
+  .photo-card.is-single { width:min(290px,76vw); }
 
   /* ── Frame bar ── */
   .frame-bar-wrap {
@@ -293,7 +304,7 @@ const CSS = `
   .frame-strip { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
   .frame-photo { flex:1; overflow:hidden; position:relative; background:rgba(0,0,0,.15); }
   .frame-photo img { width:100%; height:100%; object-fit:cover; display:block; }
-  .frame-single { flex:1 1 auto; min-height:0; overflow:hidden; position:relative; background:rgba(0,0,0,.15); }
+  .frame-single { width:100%; aspect-ratio:3/4; overflow:hidden; position:relative; background:rgba(0,0,0,.15); }
   .frame-single img { width:100%; height:100%; object-fit:cover; display:block; }
   .frame-label {
     flex-shrink:0; text-align:center; padding:6px 0 0;
@@ -418,8 +429,8 @@ const CSS = `
     display:flex; align-items:center; justify-content:center; gap:8px;
     padding:9px 16px 6px; cursor:pointer; user-select:none;
   }
-  .stk-panel-bar { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,.18); }
-  .stk-panel-label { font-size:11px; color:rgba(255,255,255,.3); }
+  .stk-panel-bar { width:36px; height:4px; border-radius:2px; background:rgba(0,0,0,.15); }
+  .stk-panel-label { font-size:11px; color:rgba(0,0,0,.35); }
 
   /* ── Griglia sticker 4 col, touch target 44px ── */
   .stk-grid { grid-template-columns:repeat(4,1fr); max-height:160px; }
@@ -1051,8 +1062,11 @@ function StickerScreen({ captureData, onRetake }) {
 
       <div
         className="photo-area"
-        ref={containerRef}
         onClick={() => setSelected(null)}
+      >
+      <div
+        className={`photo-card${isStrip ? " is-strip" : " is-single"}`}
+        ref={containerRef}
         style={{
           background: frame.bg,
           padding: frame.pad,
@@ -1155,6 +1169,7 @@ function StickerScreen({ captureData, onRetake }) {
             </>)}
           </div>
         ))}
+      </div>
       </div>
 
       <div className="stk-panel">
