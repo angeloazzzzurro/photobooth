@@ -28,7 +28,6 @@ const FRAMES = [
     bg: "#f5f2ea", accent: "#2b2b2b",
     pad: 16, gap: 6, radius: 4,
     decorations: [],
-    label: null,
     swatch: "linear-gradient(135deg,#fdfcf8,#e8e4d8)",
   },
   {
@@ -42,7 +41,6 @@ const FRAMES = [
       { emoji: "⭐", top: "2.5%", right: "6%", size: 24, rotate: 12 },
       { emoji: "🍡", bottom: "17%", right: "5%", size: 28, rotate: 0 },
     ],
-    label: { text: "photo booth" },
     swatch: "repeating-linear-gradient(90deg,#ffd9e8,#ffd9e8 6px,#ffc2dc 6px,#ffc2dc 12px)",
   },
   {
@@ -56,7 +54,6 @@ const FRAMES = [
       { emoji: "💗", top: "2.5%", right: "5%", size: 24, rotate: 8 },
       { emoji: "🎵", bottom: "19%", left: "5%", size: 22, rotate: -8 },
     ],
-    label: { text: "sweet day" },
     swatch: "repeating-linear-gradient(90deg,#cfe8ff,#cfe8ff 6px,#bcdcff 6px,#bcdcff 12px)",
   },
   {
@@ -68,7 +65,6 @@ const FRAMES = [
       { emoji: "🐸", top: "1.5%", right: "5%", size: 32, rotate: 6 },
       { emoji: "🌿", bottom: "19%", left: "4%", size: 24, rotate: -6 },
     ],
-    label: { text: "playground" },
     swatch: "#cdeede",
   },
   {
@@ -80,7 +76,6 @@ const FRAMES = [
       { emoji: "✨", top: "2.5%", right: "6%", size: 22, rotate: 10 },
       { emoji: "❤️", bottom: "18%", right: "5%", size: 24, rotate: 0 },
     ],
-    label: { text: "good day" },
     swatch: "#fff3b0",
   },
 ];
@@ -125,7 +120,7 @@ async function dbDeletePhoto(id) {
 // ─── Global CSS ────────────────────────────────────────────────────────────────
 
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Yomogi&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body {
     background: linear-gradient(145deg,#dde8ff 0%,#f5e6ff 45%,#d6f0ff 100%);
@@ -340,10 +335,6 @@ const CSS = `
   .frame-photo img { width:100%; height:100%; object-fit:cover; display:block; }
   .frame-single { width:100%; aspect-ratio:3/4; overflow:hidden; position:relative; background:rgba(0,0,0,.15); }
   .frame-single img { width:100%; height:100%; object-fit:cover; display:block; }
-  .frame-label {
-    flex-shrink:0; text-align:center; padding:6px 0 0;
-    font-family:'Yomogi',cursive; font-size:20px; letter-spacing:.5px;
-  }
 
   .stk-el {
     position:absolute; cursor:grab; user-select:none;
@@ -984,8 +975,6 @@ function StickerScreen({ captureData, onRetake, onGallery }) {
     ctx.scale(scale, scale);
 
     const f = style.filter !== "none" ? style.filter : "";
-    const LABEL_H = 34;
-    const padBottom = frame.pad + (frame.label ? LABEL_H : 0);
 
     // Frame background
     if (frame.canvasStripe) {
@@ -1004,7 +993,7 @@ function StickerScreen({ captureData, onRetake, onGallery }) {
     const innerX = frame.pad;
     const innerY = frame.pad;
     const innerW = rect.width - frame.pad * 2;
-    const innerH = rect.height - frame.pad - padBottom;
+    const innerH = rect.height - frame.pad * 2;
 
     if (!isStrip) {
       const img = await loadImage(photos[0]);
@@ -1058,16 +1047,6 @@ function StickerScreen({ captureData, onRetake, onGallery }) {
       ctx.textBaseline = "middle";
       ctx.fillText(dec.emoji, 0, 0);
       ctx.restore();
-    }
-
-    // Frame label
-    if (frame.label) {
-      try { await document.fonts.load(`20px "Yomogi"`); } catch {}
-      ctx.fillStyle = frame.accent;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.font = `20px "Yomogi",cursive`;
-      ctx.fillText(frame.label.text, rect.width / 2, rect.height - padBottom + LABEL_H / 2 + 3);
     }
 
     for (const s of stickers) {
@@ -1171,7 +1150,6 @@ function StickerScreen({ captureData, onRetake, onGallery }) {
         style={{
           background: frame.bg,
           padding: frame.pad,
-          paddingBottom: frame.pad + (frame.label ? 34 : 0),
         }}
       >
         {frame.decorations.map((dec, i) => (
@@ -1213,10 +1191,6 @@ function StickerScreen({ captureData, onRetake, onGallery }) {
           >
             <img src={photos[0]} style={{ filter: style.filter }} alt="" />
           </div>
-        )}
-
-        {frame.label && (
-          <div className="frame-label" style={{ color: frame.accent }}>{frame.label.text}</div>
         )}
 
         {/* Undo button */}
